@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Weather</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        }
+        #dashboard {
+            width: 100vw;
+            height: 100vh;
+            background: #1e1e1e;
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+        }
+        .location-container {
+            text-align: center;
+            flex-shrink: 0;
+            height: 5vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #location-display {
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            font-size: clamp(10px, 2vh, 18px);
+            cursor: pointer;
+            border: 1px solid #444;
+            border-radius: 4px;
+            padding: 4px 10px;
+        }
+        #search-input {
+            background: #2a2a2a;
+            border: 1px solid #444;
+            color: #fff;
+            padding: 5px;
+            border-radius: 4px;
+            width: 80%;
+            display: none;
+            outline: none;
+        }
+        .temp-main { 
+            height: 15vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12vh; 
+            font-weight: bold; 
+            color: #fff;
+            line-height: 1;
+            flex-shrink: 0;
+        }
+        #weather-svg { 
+            flex: 1;
+            width: 100%;
+            height: auto;
+            min-height: 0;
+        }
+        footer { 
+            height: 3vh;
+            font-size: 1.2vh;
+            color: #444;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        #search-results {
+            position: absolute;
+            top: 40px;
+            width: 80%;
+            background: #2c2c2c;
+            border: 1px solid #555;
+            z-index: 1000;
+            display: none;
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+        .search-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #3d3d3d; }
+        .nav-btn { fill: #444; cursor: pointer; }
+        .nav-btn:hover { fill: #fff; }
+        .cell { cursor: pointer; }
+        .cell:hover rect.bg-hover { fill: #2a2a2a; }
+        #overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 99; }
+        #modal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #2c2c2c; padding: 20px; border-radius: 8px; z-index: 100; width: 80%; max-width: 400px; }
+        .spinner { display: none; width: 20px; height: 20px; margin: 10px auto; border: 2px solid rgba(255,255,255,.1); border-radius: 50%; border-top-color: #3498db; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+    <div id="dashboard">
+        <div class="location-container">
+            <div id="location-display">Atlanta, GA 30337</div>
+            <input type="text" id="search-input">
+            <div id="search-results">
+                <div id="loading-spinner" class="spinner"></div>
+                <div id="results-list"></div>
+            </div>
+        </div>
+        <div id="current-temp" class="temp-main">--°</div>
+        <svg id="weather-svg" viewBox="0 0 660 570" preserveAspectRatio="xMidYMid meet">
+            <defs>
+                <linearGradient id="tempGrad" gradientUnits="userSpaceOnUse" x1="65" y1="0" x2="515" y2="0">
+                    <stop offset="0%" stop-color="#3498db"/><stop offset="50%" stop-color="#f1c40f"/><stop offset="100%" stop-color="#e74c3c"/>
+                </linearGradient>
+                <symbol id="icon-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="#f1c40f"/><g stroke="#f1c40f" stroke-width="2"><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/></g></symbol>
+                <symbol id="icon-cloud" viewBox="0 0 24 24"><path fill="#95a5a6" d="M17.5,19c2.485,0,4.5-2.015,4.5-4.5c0-2.189-1.567-4.012-3.64-4.425C17.82,7.031,15.14,5,12,5c-3.238,0-5.992,2.238-6.792,5.275C3.056,10.648,1,12.59,1,15c0,2.761,2.239,5,5,5h11.5z"/></symbol>
+                <symbol id="icon-partly-cloudy" viewBox="0 0 24 24"><g transform="translate(-2, -2)"><circle cx="16" cy="8" r="4" fill="#f1c40f"/><path d="M16 1v2M21 3l-1.5 1.5" stroke="#f1c40f" stroke-width="1.5"/></g><path fill="#95a5a6" stroke="#1e1e1e" stroke-width="1" d="M17.5,19c2.485,0,4.5-2.015,4.5-4.5c0-2.189-1.567-4.012-3.64-4.425C17.82,7.031,15.14,5,12,5c-3.238,0-5.992,2.238-6.792,5.275C3.056,10.648,1,12.59,1,15c0,2.761,2.239,5,5,5h11.5z"/></symbol>
+                <symbol id="icon-drop" viewBox="0 0 24 24"><path fill="#3498db" d="M12,20A6,6 0 0,1 6,14C6,10 12,3.25 12,3.25C12,3.25 18,10 18,14A6,6 0 0,1 12,20Z"/></symbol>
+            </defs>
+            <text x="10" y="20" fill="#888" font-size="11" font-weight="bold">HOURLY WEATHER</text>
+            <rect x="0" y="30" width="660" height="130" fill="#252525" rx="4" />
+            <path id="prev-hour" class="nav-btn" d="M20 95 L30 85 L30 105 Z" />
+            <path id="next-hour" class="nav-btn" d="M640 95 L630 85 L630 105 Z" />
+            <g id="hourly-container" transform="translate(45, 40)"></g>
+            <text x="10" y="185" fill="#888" font-size="11" font-weight="bold">7-DAY FORECAST</text>
+            <rect x="0" y="195" width="660" height="360" fill="#252525" rx="4" />
+            <g id="daily-container" transform="translate(15, 215)"></g>
+        </svg>
+        <footer>Sources: National Weather Service, OpenStreetMap</footer>
+    </div>
+    <div id="overlay"></div>
+    <div id="modal">
+        <h3 id="modal-title"></h3>
+        <p id="modal-body"></p>
+        <button onclick="closeModal()">Close</button>
+    </div>
+    <script>
+        const MAX_HOURS = 24, HOURLY_WINDOW = 8, TRACK_WIDTH = 450, TRACK_START_X = 65; 
+        let currentLat = "33.6604", currentLon = "-84.4512", hourlyOffset = 0, hourlyData = [], fullHourlyData = [], dailyData = [], lastDateString = new Date().toDateString();
+        const locationDisplay = document.getElementById('location-display'), searchInput = document.getElementById('search-input'), searchResults = document.getElementById('search-results'), resultsList = document.getElementById('results-list'), loadingSpinner = document.getElementById('loading-spinner');
+        async function initWeather() {
+            try {
+                const pointsUrl = `https://api.weather.gov/points/${currentLat},${currentLon}`;
+                const meta = await fetch(pointsUrl).then(r => r.json());
+                const [dailyRes, hourlyRes] = await Promise.all([fetch(meta.properties.forecast).then(r => r.json()), fetch(meta.properties.forecastHourly).then(r => r.json())]);
+                fullHourlyData = hourlyRes.properties.periods;
+                const now = new Date();
+                hourlyData = fullHourlyData.filter(h => new Date(h.endTime) > now).slice(0, MAX_HOURS);
+                dailyData = dailyRes.properties.periods;
+                lastDateString = now.toDateString();
+                updateCurrentTempDisplay();
+                renderHourly(); renderDaily();
+            } catch (e) {}
+        }
+        function updateCurrentTempDisplay() {
+            if (hourlyData.length > 0) {
+                document.getElementById('current-temp').innerText = `${hourlyData[0].temperature}°`;
+            }
+        }
+        locationDisplay.onclick = () => { locationDisplay.style.display = 'none'; searchInput.style.display = 'block'; searchInput.focus(); };
+        let debounceTimer;
+        searchInput.oninput = () => {
+            clearTimeout(debounceTimer);
+            const q = searchInput.value.trim();
+            if (q.length < 3) { searchResults.style.display = 'none'; return; }
+            debounceTimer = setTimeout(async () => {
+                searchResults.style.display = 'block'; resultsList.innerHTML = ''; loadingSpinner.style.display = 'block';
+                try {
+                    const nomUrl = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&countrycodes=us&limit=6`;
+                    const nData = await fetch(nomUrl, { headers: { 'User-Agent': 'WeatherApp/1.0' } }).then(r => r.json());
+                    loadingSpinner.style.display = 'none';
+                    nData.forEach(item => {
+                        const div = document.createElement('div'); div.className = 'search-item'; div.textContent = item.display_name;
+                        div.onclick = () => {
+                            currentLat = parseFloat(item.lat).toFixed(4); currentLon = parseFloat(item.lon).toFixed(4);
+                            locationDisplay.textContent = item.display_name.split(',')[0].toUpperCase();
+                            resetSearchUI(); initWeather();
+                        };
+                        resultsList.appendChild(div);
+                    });
+                } catch (e) { loadingSpinner.style.display = 'none'; }
+            }, 500);
+        };
+        function resetSearchUI() { locationDisplay.style.display = 'inline-block'; searchInput.style.display = 'none'; searchInput.value = ''; searchResults.style.display = 'none'; }
+        function getIcon(f) { const d = f.toLowerCase(); if (d.includes("partly") || d.includes("mostly sunny") || d.includes("mostly clear")) return "#icon-partly-cloudy"; if (d.includes("sun") || d.includes("clear")) return "#icon-sun"; return "#icon-cloud"; }
+        function createSVGElement(t, a) {
+            const e = document.createElementNS("http://www.w3.org/2000/svg", t);
+            for (let k in a) { if (k === 'content') e.textContent = a[k]; else e.setAttribute(k, a[k]); }
+            return e;
+        }
+        function renderHourly() {
+            const container = document.getElementById('hourly-container'); container.innerHTML = '';
+            hourlyData.slice(hourlyOffset, hourlyOffset + HOURLY_WINDOW).forEach((h, i) => {
+                const x = i * 72, time = new Date(h.startTime).getHours(), ampm = time >= 12 ? 'PM' : 'AM', displayTime = (time % 12 || 12) + ' ' + ampm, precip = h.probabilityOfPrecipitation?.value || 0;
+                const g = createSVGElement("g", { class: "cell", transform: `translate(${x}, 0)` });
+                g.onclick = () => showDetails(h);
+                g.append(createSVGElement("rect", { class: "bg-hover", x: 0, y: 0, width: 68, height: 110, fill: "transparent", rx: 4 }));
+                g.append(createSVGElement("text", { x: 34, y: 20, fill: "#666", "font-size": "11", "text-anchor": "middle", content: displayTime }));
+                g.append(createSVGElement("use", { href: getIcon(h.shortForecast), x: 18, y: 30, width: 32, height: 32 }));
+                g.append(createSVGElement("text", { x: 34, y: 80, fill: "#fff", "font-size": "16", "font-weight": "bold", "text-anchor": "middle", content: `${h.temperature}°` }));
+                if (precip > 0) {
+                    g.append(createSVGElement("use", { href: "#icon-drop", x: 16, y: 90, width: 16, height: 16 }));
+                    g.append(createSVGElement("text", { x: 36, y: 102, fill: "#3498db", "font-size": "13", content: `${precip}%` }));
+                }
+                container.appendChild(g);
+            });
+        }
+        function renderDaily() {
+            const container = document.getElementById('daily-container'); container.innerHTML = '';
+            const map = new Map();
+            
+            // 1. Get the actual high from hourly data for today to prevent the "6PM collapse"
+            const todayStr = new Date().toDateString();
+            const todaysHourly = fullHourlyData.filter(h => new Date(h.startTime).toDateString() === todayStr);
+            const actualHighToday = todaysHourly.length > 0 ? Math.max(...todaysHourly.map(h => h.temperature)) : null;
+
+            dailyData.forEach(p => {
+                const d = new Date(p.startTime).toDateString();
+                if (!map.has(d)) map.set(d, { hi: null, lo: null, data: p, start: p.startTime });
+                const group = map.get(d);
+                if (p.isDaytime) group.hi = p.temperature;
+                else group.lo = p.temperature;
+                
+                // 2. If it's today and NWS already hid the daytime High, use our calculated hourly high
+                if (d === todayStr && group.hi === null) {
+                    group.hi = actualHighToday;
+                }
+
+                if (!group.data && p.isDaytime) group.data = p;
+            });
+
+            Array.from(map.values()).slice(0, 7).forEach((group, i) => {
+                const y = i * 48, displayData = group.data, hi = group.hi ?? group.lo, lo = group.lo ?? group.hi, dateObj = new Date(group.start);
+                const g = createSVGElement("g", { class: "cell" });
+                g.onclick = () => showDetails(displayData);
+                const lPos = Math.max(0, Math.min(100, lo)), hPos = Math.max(0, Math.min(100, hi));
+                const bX = TRACK_START_X + (lPos * (TRACK_WIDTH / 100)), bW = Math.max((TRACK_START_X + (hPos * (TRACK_WIDTH / 100))) - bX, 10);
+                g.append(createSVGElement("text", { x: 0, y: y + 20, fill: "#fff", "font-size": "14", "font-weight": "bold", content: dateObj.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase() }));
+                g.append(createSVGElement("rect", { x: TRACK_START_X, y: y + 20, width: TRACK_WIDTH, height: 6, fill: "#333", rx: 3 }));
+                g.append(createSVGElement("rect", { x: bX, y: y + 16, width: bW, height: 14, fill: "url(#tempGrad)", rx: 7 }));
+                g.append(createSVGElement("text", { x: bX + 6, y: y + 27, fill: "#fff", "font-size": "11", content: `${lo}°` }));
+                g.append(createSVGElement("text", { x: bX + bW - 6, y: y + 27, fill: "#fff", "font-size": "11", "text-anchor": "end", content: `${hi}°` }));
+                g.append(createSVGElement("use", { href: getIcon(displayData.shortForecast), x: 535, y: y + 8, width: 32, height: 32 }));
+                const pVal = displayData.probabilityOfPrecipitation?.value || 0;
+                if (pVal > 0) {
+                    g.append(createSVGElement("use", { href: "#icon-drop", x: 580, y: y + 15, width: 16, height: 16 }));
+                    g.append(createSVGElement("text", { x: 600, y: y + 28, fill: "#3498db", "font-size": "13", content: `${pVal}%` }));
+                }
+                container.appendChild(g);
+            });
+        }
+        function showDetails(d) {
+            document.getElementById('modal-title').innerText = d.name || "Forecast";
+            document.getElementById('modal-body').innerText = `${d.detailedForecast || d.shortForecast}`;
+            document.getElementById('overlay').style.display = 'block'; document.getElementById('modal').style.display = 'block';
+        }
+        function closeModal() { document.getElementById('overlay').style.display = 'none'; document.getElementById('modal').style.display = 'none'; }
+        function scheduleHourlyUpdate() {
+            const now = new Date();
+            const nextUpdate = new Date(now);
+            nextUpdate.setMinutes(5);
+            nextUpdate.setSeconds(0);
+            nextUpdate.setMilliseconds(0);
+            if (now.getMinutes() >= 5) nextUpdate.setHours(now.getHours() + 1);
+            setTimeout(() => {
+                hourlyOffset = 0;
+                initWeather();
+                setInterval(() => { hourlyOffset = 0; initWeather(); }, 3600000);
+            }, nextUpdate.getTime() - now.getTime());
+        }
+        document.getElementById('next-hour').onclick = () => { if (hourlyOffset < MAX_HOURS - HOURLY_WINDOW) { hourlyOffset += 1; renderHourly(); } };
+        document.getElementById('prev-hour').onclick = () => { if (hourlyOffset > 0) { hourlyOffset -= 1; renderHourly(); } };
+        initWeather();
+        scheduleHourlyUpdate();
+        setInterval(() => {
+            const now = new Date();
+            if (now.toDateString() !== lastDateString) {
+                hourlyOffset = 0;
+                initWeather();
+            } else {
+                updateCurrentTempDisplay();
+            }
+        }, 60000);
+    </script>
+</body>
+</html>
